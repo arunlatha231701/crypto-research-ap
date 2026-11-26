@@ -1,3 +1,5 @@
+import 'package:frontend/app/routes/route_paths.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,7 +18,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-
+  bool _isLoggingOut = false;
   @override
   void dispose() {
     _usernameController.dispose();
@@ -89,6 +91,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
           ),
 
+
           if (profileState.errorMessage != null) ...[
             const SizedBox(height: 16),
             Text(
@@ -103,10 +106,100 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               profileState.successMessage!,
               style: const TextStyle(color: Colors.green),
             ),
+
+            const SizedBox(height: 12),
+
+            Card(
+              child: ListTile(
+                leading: Icon(
+                  Icons.logout_rounded,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(
+                  'Logout',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Sign out of your account',
+                ),
+                trailing: _isLoggingOut
+                    ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                  ),
+                )
+                    : const Icon(Icons.chevron_right),
+                onTap: _isLoggingOut ? null : _showLogoutConfirmation,
+              ),
+            ),
+
           ],
         ],
       ),
     );
+  }
+
+  Future<void> _showLogoutConfirmation() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Logout'),
+          content: const Text(
+            'Are you sure you want to logout from your account?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldLogout != true || !mounted) return;
+
+    setState(() => _isLoggingOut = true);
+
+    try {
+      await ref
+          .read(authViewModelProvider.notifier)
+          .logout();
+      if (!mounted) return;
+
+      context.go(RoutePaths.login);
+      // Auth state is now unauthenticated.
+      // GoRouter should redirect to the Login screen.
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Unable to logout. Please try again.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoggingOut = false);
+      }
+    }
   }
 
   Widget _buildProfileHeader(String username, String email) {
